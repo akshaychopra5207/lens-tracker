@@ -5,6 +5,27 @@ import { getSettings } from '../data/settingsRepo';
 import { ev } from '../domain/events';
 import { project } from '../domain/projection';
 import { Diagnostics } from "./components/Diagnostics";
+import { subscribeForPush } from "./push";
+import { registerPushSubscription } from "./pushApi";
+import { getOrCreateDeviceId } from "./deviceId";
+
+async function enableReminders() {
+    const result = await Notification.requestPermission();
+    if (result !== "granted") {
+        alert("Notifications not enabled.");
+        return;
+    }
+
+    try {
+        const sub = await subscribeForPush();
+        const resp = await registerPushSubscription(sub);
+        const deviceId = getOrCreateDeviceId();
+
+        alert(`Registered ✅\nDeviceId: ${deviceId}\nResp: ${JSON.stringify(resp)}`);
+    } catch (e: any) {
+        alert(`Enable reminders failed: ${e?.message ?? String(e)}`);
+    }
+}
 
 export function getOrCreateDeviceId(): string {
     const key = "lenstracker_device_id";
@@ -123,6 +144,9 @@ export default function Home() {
             <BigButton className="primary" label="Change Both" onClick={changeBoth} disabled={!canChangeBoth} />
 
             <BigButton className="warn" label="Clear All" onClick={clearAllData} />
+            <button className="button primary" onClick={enableReminders}>
+                Enable Reminders
+            </button>
             <button className="button primary" onClick={enableReminders}>
                 Enable Reminders
             </button>
