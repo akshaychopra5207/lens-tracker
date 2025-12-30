@@ -82,20 +82,6 @@ export default function Home() {
                                 iPhone needs you to import them once. Tip: delete old “LensTracker - {pendingIcs.eye}” calendar reminders before importing to avoid duplicates.
                             </div>
                         </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                            <button
-                                className="button primary"
-                                onClick={() => {
-                                    downloadTextFile(pendingIcs.filename, pendingIcs.content);
-                                    setPendingIcs(null); // ✅ hide banner immediately after download
-                                }}
-                            >
-                                Download & Add
-                            </button>
-                            <button className="button" onClick={() => setPendingIcs(null)}>
-                                Dismiss
-                            </button>
-                        </div>
                     </div>
                 </div>
             )}
