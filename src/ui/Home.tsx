@@ -31,7 +31,6 @@ export default function Home() {
     const canUseRight = invR > 0;
 
     const canChangeBoth = invL > 0 && invR > 0;
-    const [pendingIcs, setPendingIcs] = useState<null | { filename: string; content: string; eye: "LEFT" | "RIGHT" }>(null);
 
 
     async function doUse(eye: 'LEFT' | 'RIGHT') {
@@ -71,21 +70,6 @@ export default function Home() {
 
     return (
         <div className="grid">
-            {pendingIcs && (
-                <div className="card" style={{ marginBottom: 12 }}>
-                    <div className="row" style={{ justifyContent: "space-between", gap: 12 }}>
-                        <div>
-                            <div className="big" style={{ fontSize: 18 }}>
-                                Reminders ready for {pendingIcs.eye}
-                            </div>
-                            <div className="small">
-                                iPhone needs you to import them once. Tip: delete old “LensTracker - {pendingIcs.eye}” calendar reminders before importing to avoid duplicates.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             <div className="card">
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                     <div>
