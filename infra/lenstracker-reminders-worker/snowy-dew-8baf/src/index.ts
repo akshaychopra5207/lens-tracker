@@ -1,16 +1,5 @@
 import webpush from "web-push";
 
-type Eye = "LEFT" | "RIGHT";
-
-type CycleState = {
-	cycleId: string;          // unique per reset
-	eye: Eye;
-	dueAt: string;            // ISO string
-	createdAt: string;        // ISO
-	lastSentAt?: string;      // ISO
-	sentCount: number;        // how many nags already sent
-};
-
 function cycleKey(deviceId: string, eye: Eye) {
 	return `cycle:${deviceId}:${eye}`;
 }
@@ -27,6 +16,8 @@ export interface Env {
 	VAPID_PRIVATE_KEY: string;
 	VAPID_PUBLIC_KEY: string;
 	VAPID_SUBJECT: string;
+	ADMIN_KEY: string;
+
 }
 
 type RegisterBody = {
@@ -40,6 +31,96 @@ function json(data: unknown, status = 200) {
 		headers: { "Content-Type": "application/json" },
 	});
 }
+
+type Eye = "LEFT" | "RIGHT";
+type CycleState = {
+	cycleId: string;
+	eye: Eye;
+	dueAt: string;
+	createdAt: string;
+	lastSentAt?: string;
+	sentCount: number;
+};
+
+
+type SweepStats = {
+	cycleKeys: number;
+	dueOrOverdue: number;
+	eligibleToSend: number;
+	sent: number;
+	missingSub: number;
+	errors: number;
+};
+
+async function runNagSweep(env: Env): Promise<SweepStats> {
+	const stats: SweepStats = {
+		cycleKeys: 0,
+		dueOrOverdue: 0,
+		eligibleToSend: 0,
+		sent: 0,
+		missingSub: 0,
+		errors: 0,
+	};
+
+	const list = await env.LT_KV.list({ prefix: "cycle:" });
+	stats.cycleKeys = list.keys.length;
+
+	const now = Date.now();
+
+	for (const k of list.keys) {
+		const raw = await env.LT_KV.get(k.name);
+		if (!raw) continue;
+
+		const state = JSON.parse(raw) as CycleState;
+
+		const dueMs = new Date(state.dueAt).getTime();
+		if (now < dueMs) continue;
+		stats.dueOrOverdue++;
+
+		const idx = Math.min(state.sentCount, NAG_OFFSETS_DAYS.length - 1);
+		const nextOffsetDays = NAG_OFFSETS_DAYS[idx];
+		const nextSendAt = dueMs + nextOffsetDays * 24 * 60 * 60 * 1000;
+
+		if (now < nextSendAt) continue;
+		stats.eligibleToSend++;
+
+		const parts = k.name.split(":"); // cycle:<deviceId>:<eye>
+		const deviceId = parts[1];
+		const eye = parts[2] as Eye;
+
+		const subRaw = await env.LT_KV.get(`sub:${deviceId}`);
+		if (!subRaw) {
+			stats.missingSub++;
+			continue;
+		}
+
+		const subscription = JSON.parse(subRaw);
+
+		const payload = JSON.stringify({
+			title: "LensTracker",
+			body: state.sentCount === 0
+				? `${eye} lens due now. Please change it.`
+				: `${eye} lens is overdue. Please change it.`,
+			tag: `lenstracker-${eye.toLowerCase()}`,
+			url: "/",
+		});
+
+		try {
+			webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
+			await webpush.sendNotification(subscription, payload);
+
+			state.sentCount += 1;
+			state.lastSentAt = new Date(now).toISOString();
+			await env.LT_KV.put(k.name, JSON.stringify(state));
+			stats.sent++;
+		} catch {
+			stats.errors++;
+		}
+	}
+
+	return stats;
+}
+
 
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
@@ -156,66 +237,59 @@ export default {
 				headers: { "Content-Type": "application/json", ...corsHeaders },
 			});
 		}
+		if (url.pathname === "/cron/runOnce" && req.method === "POST") {
+			const key = req.headers.get("x-admin-key");
+			if (!key || key !== env.ADMIN_KEY) {
+				return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+			}
+
+			const stats = await runNagSweep(env);
+
+			return new Response(JSON.stringify({ ok: true, stats }), {
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			});
+		}
+
+		if (url.pathname === "/cycle/get" && req.method === "GET") {
+			const key = req.headers.get("x-admin-key");
+			if (!key || key !== env.ADMIN_KEY) {
+				return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+			}
+
+			const deviceId = url.searchParams.get("deviceId");
+			const eye = url.searchParams.get("eye") as Eye | null;
+
+			if (!deviceId || (eye !== "LEFT" && eye !== "RIGHT")) {
+				return new Response("Bad Request: deviceId & eye required", { status: 400, headers: corsHeaders });
+			}
+
+			const raw = await env.LT_KV.get(`cycle:${deviceId}:${eye}`);
+			return new Response(JSON.stringify({ ok: true, raw: raw ? JSON.parse(raw) : null }), {
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			});
+		}
+
+		if (url.pathname === "/push/get" && req.method === "GET") {
+			const key = req.headers.get("x-admin-key");
+			if (!key || key !== env.ADMIN_KEY) {
+				return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+			}
+
+			const deviceId = url.searchParams.get("deviceId");
+			if (!deviceId) return new Response("Bad Request: deviceId required", { status: 400, headers: corsHeaders });
+
+			const raw = await env.LT_KV.get(`sub:${deviceId}`);
+			return new Response(JSON.stringify({ ok: true, hasSub: !!raw, sub: raw ? JSON.parse(raw) : null }), {
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			});
+		}
 
 
 		return new Response("Not Found", { status: 404, headers: corsHeaders });
 	},
 
+
 	async scheduled(_event: ScheduledEvent, env: Env) {
-		// 1) list cycle keys (small scale: OK)
-		const list = await env.LT_KV.list({ prefix: "cycle:" });
-
-		const now = Date.now();
-
-		for (const k of list.keys) {
-			const raw = await env.LT_KV.get(k.name);
-			if (!raw) continue;
-
-			const state = JSON.parse(raw) as CycleState;
-
-			const dueMs = new Date(state.dueAt).getTime();
-			if (now < dueMs) continue; // not due yet
-
-			const idx = Math.min(state.sentCount, NAG_OFFSETS_DAYS.length - 1);
-			const nextOffsetDays = NAG_OFFSETS_DAYS[idx];
-			const nextSendAt = dueMs + nextOffsetDays * 24 * 60 * 60 * 1000;
-
-			// 2) only send if we passed the next scheduled nag moment
-			if (now < nextSendAt) continue;
-
-			// 3) extract deviceId from key: cycle:<deviceId>:<eye>
-			const parts = k.name.split(":");
-			const deviceId = parts[1];
-			const eye = parts[2] as Eye;
-
-			const subRaw = await env.LT_KV.get(`sub:${deviceId}`);
-			if (!subRaw) continue;
-
-			const subscription = JSON.parse(subRaw);
-
-			// 4) send push
-			const payload = JSON.stringify({
-				title: "LensTracker",
-				body:
-					state.sentCount === 0
-						? `${eye} lens due today. Change it when you can.`
-						: `${eye} lens is overdue. Please change it.`,
-				tag: `lenstracker-${eye.toLowerCase()}`, // groups per eye
-				url: "/",
-			});
-
-			try {
-				webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-				await webpush.sendNotification(subscription, payload);
-
-				// 5) update state: increment count so next nag gets larger offset
-				state.sentCount += 1;
-				state.lastSentAt = new Date(now).toISOString();
-				await env.LT_KV.put(k.name, JSON.stringify(state));
-			} catch {
-				// If subscription is dead (410/404), we’ll handle cleanup later.
-				// For now: ignore and retry next cron.
-			}
-		}
+		await runNagSweep(env);
 	},
 };

@@ -118,7 +118,9 @@ export default function Home() {
     }
 
     return (
+
         <div className="grid">
+            <div className="small mono">DeviceId: {getOrCreateDeviceId()}</div>
             <div className="card">
                 <div className="row" style={{ justifyContent: "space-between" }}>
                     <div>
