@@ -13,6 +13,11 @@
 	"observability": {
 		"enabled": true
 	},
+	"triggers": {
+		"crons": [
+			"0 */6 * * *"
+		]
+	},
 	"kv_namespaces": [
 		{
 			"binding": "LT_KV",
