@@ -13,10 +13,6 @@ export default function Home() {
     const [nextR, setNextR] = useState<Date | null>(null);
     const [runOut, setRunOut] = useState(0);
     const lensTypeId = 'default'; // MVP: single type
-    const showDebug =
-        import.meta.env.DEV ||
-        (typeof window !== "undefined" &&
-            new URLSearchParams(window.location.search).get("debug") === "1");
 
     async function refresh() {
         const settings = await getSettings();
@@ -99,7 +95,7 @@ export default function Home() {
 
             <BigButton className="warn" label="Clear All" onClick={clearAllData} />
 
-            {showDebug && <Diagnostics />}
+            {<Diagnostics />}
 
 
         </div>
