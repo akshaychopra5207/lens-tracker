@@ -4,7 +4,6 @@ import { clearAll, listEventsDesc, saveEvent } from "../data/repo";
 import { getSettings } from "../data/settingsRepo";
 import { ev } from "../domain/events";
 import { project } from "../domain/projection";
-import { Diagnostics } from "./components/Diagnostics";
 import { subscribeForPush } from "./push";
 import { registerPushSubscription } from "./pushApi";
 import { getOrCreateDeviceId } from "./deviceId";
@@ -82,7 +81,9 @@ export default function Home() {
         // 4) Tell Worker about this cycle (server-side “single source of truth”)
         if (due) {
             try {
-                await upsertCycle(eye, due);
+                const r = await upsertCycle(eye, due);
+                console.log("cycle upserted", r);
+
             } catch (err: any) {
                 // Don’t block lens usage if push infra is down
                 console.error("cycle/upsert failed:", err);
@@ -149,7 +150,6 @@ export default function Home() {
                 Enable Reminders
             </button>
 
-            <Diagnostics />
         </div>
     );
 }
