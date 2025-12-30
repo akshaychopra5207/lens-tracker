@@ -4,8 +4,6 @@ import { clearAll, listEventsDesc, saveEvent } from '../data/repo';
 import { getSettings } from '../data/settingsRepo';
 import { ev } from '../domain/events';
 import { project } from '../domain/projection';
-import { buildLensReminderIcs } from "../domain/reminders";
-import { downloadTextFile } from "./download";
 import { Diagnostics } from "./components/Diagnostics";
 
 export default function Home() {
@@ -53,26 +51,6 @@ export default function Home() {
         // 2) Save USE event
         const e = eye === "LEFT" ? ev.useLeft(lensTypeId) : ev.useRight(lensTypeId);
         await saveEvent(e);
-
-        // 3) Refresh projection to get updated next change date
-        const eventsAfter = await listEventsDesc(1000);
-        const pAfter = project([...eventsAfter].reverse(), s.frequency);
-
-        const due = eye === "LEFT" ? pAfter.nextL : pAfter.nextR;
-        if (due) {
-            const ics = buildLensReminderIcs({
-                eye,
-                dueDate: due,
-                calendarName: `LensTracker - ${eye}`,
-            });
-
-            setPendingIcs({
-                eye,
-                filename: `lenstracker-${eye.toLowerCase()}-reminders.ics`,
-                content: ics,
-            });
-        }
-
         await refresh();
     }
 
@@ -146,9 +124,6 @@ export default function Home() {
             <BigButton className="primary" label="Change Both" onClick={changeBoth} disabled={!canChangeBoth} />
 
             <BigButton className="warn" label="Clear All" onClick={clearAllData} />
-
-            <div className="small">Tip: set cycle in code (DEFAULT_CYCLE_DAYS = 30 for monthlies, 1 for dailies).</div>
-            <div className="small">Tip: set cycle in code (DEFAULT_CYCLE_DAYS = 30 for monthlies, 1 for dailies).</div>
 
             {import.meta.env.DEV && <Diagnostics />}
         </div>
