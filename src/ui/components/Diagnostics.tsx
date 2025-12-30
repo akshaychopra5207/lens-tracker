@@ -1,10 +1,12 @@
 import React from "react";
+import { getOrCreateDeviceId } from "../Home";
 
 export function Diagnostics() {
     const diagnostics = React.useMemo(() => {
         const hasNotification = typeof window !== "undefined" && "Notification" in window;
         return {
             serviceWorker: typeof navigator !== "undefined" && "serviceWorker" in navigator,
+            deviceId: getOrCreateDeviceId(),
             pushManager: typeof window !== "undefined" && "PushManager" in window,
             notification: hasNotification,
             permission: hasNotification ? Notification.permission : "n/a",

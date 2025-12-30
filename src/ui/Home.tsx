@@ -6,14 +6,27 @@ import { ev } from '../domain/events';
 import { project } from '../domain/projection';
 import { Diagnostics } from "./components/Diagnostics";
 
+export function getOrCreateDeviceId(): string {
+    const key = "lenstracker_device_id";
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return "no-localstorage";
+    }
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+
+    const id =
+        crypto.randomUUID?.() ??
+        `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    localStorage.setItem(key, id);
+    return id;
+}
+
 export default function Home() {
     const [invL, setInvL] = useState(0);
     const [invR, setInvR] = useState(0);
-    const [nextL, setNextL] = useState<Date | null>(null);
-    const [nextR, setNextR] = useState<Date | null>(null);
     const [runOut, setRunOut] = useState(0);
     const lensTypeId = 'default'; // MVP: single type
-
     async function enableReminders() {
         const result = await Notification.requestPermission();
         if (result !== "granted") return;
@@ -44,8 +57,6 @@ export default function Home() {
         const p = project([...events].reverse(), settings.frequency);
         setInvL(p.invL);
         setInvR(p.invR);
-        setNextL(p.nextL);
-        setNextR(p.nextR);
         setRunOut(p.runOutDays);
     }
 
@@ -100,12 +111,6 @@ export default function Home() {
                         <div className="small">Inventory</div>
                         <div className="big mono">L: {invL} | R: {invR}</div>
                         <div className="small">Run-out in ~{runOut} days</div>
-                    </div>
-                    <div>
-                        <div className="small">Next Left</div>
-                        <div>{nextL ? nextL.toDateString() : '—'}</div>
-                        <div className="small">Next Right</div>
-                        <div>{nextR ? nextR.toDateString() : '—'}</div>
                     </div>
                 </div>
             </div>
