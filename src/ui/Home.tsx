@@ -15,19 +15,27 @@ export default function Home() {
     const lensTypeId = 'default'; // MVP: single type
 
     async function enableReminders() {
-        if (!("Notification" in window)) {
-            alert("Notifications not supported on this device/browser.");
-            return;
-        }
-
         const result = await Notification.requestPermission();
+        if (result !== "granted") return;
+        await subscribeToPush();
+    }
 
-        if (result !== "granted") {
-            alert("Notifications are not enabled. You can enable them in iPhone Settings > Notifications.");
+    async function subscribeToPush() {
+        const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
+        if (!publicKey) {
+            alert("Missing VITE_VAPID_PUBLIC_KEY");
             return;
         }
 
-        alert("Notifications enabled. Next: we will register your device for push reminders.");
+        const reg = await navigator.serviceWorker.ready;
+
+        const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: publicKey,
+        });
+
+        console.log("Push subscription:", sub);
+        alert("Subscribed to push. Next: send this subscription to Cloudflare Worker.");
     }
 
     async function refresh() {
