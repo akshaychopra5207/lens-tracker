@@ -23,8 +23,8 @@ self.addEventListener("push", (event: PushEvent) => {
         self.registration.showNotification(title, {
             body,
             tag: data.tag ?? "lenstracker",
-            renotify: true,
             data: data.url ?? "/", // used when user taps notification
+            // renotify: true, // Removed to fix type error
         })
     );
 });
