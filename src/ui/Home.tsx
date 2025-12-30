@@ -14,6 +14,22 @@ export default function Home() {
     const [runOut, setRunOut] = useState(0);
     const lensTypeId = 'default'; // MVP: single type
 
+    async function enableReminders() {
+        if (!("Notification" in window)) {
+            alert("Notifications not supported on this device/browser.");
+            return;
+        }
+
+        const result = await Notification.requestPermission();
+
+        if (result !== "granted") {
+            alert("Notifications are not enabled. You can enable them in iPhone Settings > Notifications.");
+            return;
+        }
+
+        alert("Notifications enabled. Next: we will register your device for push reminders.");
+    }
+
     async function refresh() {
         const settings = await getSettings();
         const events = await listEventsDesc(1000);
@@ -94,7 +110,9 @@ export default function Home() {
             <BigButton className="primary" label="Change Both" onClick={changeBoth} disabled={!canChangeBoth} />
 
             <BigButton className="warn" label="Clear All" onClick={clearAllData} />
-
+            <button className="button primary" onClick={enableReminders}>
+                Enable Reminders
+            </button>
             {<Diagnostics />}
 
 
