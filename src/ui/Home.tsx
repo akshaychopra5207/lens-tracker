@@ -27,50 +27,12 @@ async function enableReminders() {
     }
 }
 
-export function getOrCreateDeviceId(): string {
-    const key = "lenstracker_device_id";
-    if (typeof window === 'undefined' || !window.localStorage) {
-        return "no-localstorage";
-    }
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-
-    const id =
-        crypto.randomUUID?.() ??
-        `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-    localStorage.setItem(key, id);
-    return id;
-}
-
 export default function Home() {
     const [invL, setInvL] = useState(0);
     const [invR, setInvR] = useState(0);
     const [runOut, setRunOut] = useState(0);
     const lensTypeId = 'default'; // MVP: single type
-    async function enableReminders() {
-        const result = await Notification.requestPermission();
-        if (result !== "granted") return;
-        await subscribeToPush();
-    }
 
-    async function subscribeToPush() {
-        const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
-        if (!publicKey) {
-            alert("Missing VITE_VAPID_PUBLIC_KEY");
-            return;
-        }
-
-        const reg = await navigator.serviceWorker.ready;
-
-        const sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: publicKey,
-        });
-
-        console.log("Push subscription:", sub);
-        alert("Subscribed to push. Next: send this subscription to Cloudflare Worker.");
-    }
 
     async function refresh() {
         const settings = await getSettings();
@@ -147,9 +109,7 @@ export default function Home() {
             <button className="button primary" onClick={enableReminders}>
                 Enable Reminders
             </button>
-            <button className="button primary" onClick={enableReminders}>
-                Enable Reminders
-            </button>
+
             {<Diagnostics />}
 
 

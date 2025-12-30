@@ -1,5 +1,5 @@
 import React from "react";
-import { getOrCreateDeviceId } from "../Home";
+import { getOrCreateDeviceId } from "../deviceId";
 
 export function Diagnostics() {
     const diagnostics = React.useMemo(() => {
