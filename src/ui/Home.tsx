@@ -4,6 +4,9 @@ import { clearAll, listEventsDesc, saveEvent } from '../data/repo';
 import { getSettings } from '../data/settingsRepo';
 import { ev } from '../domain/events';
 import { project } from '../domain/projection';
+import { buildLensReminderIcs } from "../domain/reminders";
+import { downloadTextFile } from "./download";
+import { Diagnostics } from "./components/Diagnostics";
 
 export default function Home() {
     const [invL, setInvL] = useState(0);
@@ -30,12 +33,46 @@ export default function Home() {
     const canUseRight = invR > 0;
 
     const canChangeBoth = invL > 0 && invR > 0;
+    const [pendingIcs, setPendingIcs] = useState<null | { filename: string; content: string; eye: "LEFT" | "RIGHT" }>(null);
+
 
     async function doUse(eye: 'LEFT' | 'RIGHT') {
-        const e = eye === 'LEFT' ? ev.useLeft(lensTypeId) : ev.useRight(lensTypeId);
+        const lensTypeId = "default";
+
+        // 1) Check current inventory to prevent going negative
+        const eventsBefore = await listEventsDesc(1000);
+        const s = await getSettings();
+        const pBefore = project([...eventsBefore].reverse(), s.frequency);
+        const invEye = eye === "LEFT" ? pBefore.invL : pBefore.invR;
+
+        if (invEye <= 0) {
+            alert(`No ${eye.toLowerCase()} inventory left.`);
+            return;
+        }
+
+        // 2) Save USE event
+        const e = eye === "LEFT" ? ev.useLeft(lensTypeId) : ev.useRight(lensTypeId);
         await saveEvent(e);
-        // quick inline undo via correction (no toast lib required)
-        // You can add a fancy snackbar later; for now, just refresh.
+
+        // 3) Refresh projection to get updated next change date
+        const eventsAfter = await listEventsDesc(1000);
+        const pAfter = project([...eventsAfter].reverse(), s.frequency);
+
+        const due = eye === "LEFT" ? pAfter.nextL : pAfter.nextR;
+        if (due) {
+            const ics = buildLensReminderIcs({
+                eye,
+                dueDate: due,
+                calendarName: `LensTracker - ${eye}`,
+            });
+
+            setPendingIcs({
+                eye,
+                filename: `lenstracker-${eye.toLowerCase()}-reminders.ics`,
+                content: ics,
+            });
+        }
+
         await refresh();
     }
 
@@ -53,8 +90,38 @@ export default function Home() {
         await refresh();
     }
 
+
     return (
         <div className="grid">
+            {pendingIcs && (
+                <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="row" style={{ justifyContent: "space-between", gap: 12 }}>
+                        <div>
+                            <div className="big" style={{ fontSize: 18 }}>
+                                Reminders ready for {pendingIcs.eye}
+                            </div>
+                            <div className="small">
+                                iPhone needs you to import them once. Tip: delete old “LensTracker - {pendingIcs.eye}” calendar reminders before importing to avoid duplicates.
+                            </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                                className="button primary"
+                                onClick={() => {
+                                    downloadTextFile(pendingIcs.filename, pendingIcs.content);
+                                    setPendingIcs(null); // ✅ hide banner immediately after download
+                                }}
+                            >
+                                Download & Add
+                            </button>
+                            <button className="button" onClick={() => setPendingIcs(null)}>
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="card">
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                     <div>
@@ -81,6 +148,9 @@ export default function Home() {
             <BigButton className="warn" label="Clear All" onClick={clearAllData} />
 
             <div className="small">Tip: set cycle in code (DEFAULT_CYCLE_DAYS = 30 for monthlies, 1 for dailies).</div>
+            <div className="small">Tip: set cycle in code (DEFAULT_CYCLE_DAYS = 30 for monthlies, 1 for dailies).</div>
+
+            {import.meta.env.DEV && <Diagnostics />}
         </div>
     );
 }
