@@ -24,7 +24,6 @@ export default function AddStock({ onStockAdded }: { onStockAdded: () => void })
     const [qty, setQty] = useState<number>(1);
     const [note, setNote] = useState<string>("");
 
-    // Initial load: read current settings to preselect frequency
     useEffect(() => {
         (async () => {
             try {
@@ -39,13 +38,11 @@ export default function AddStock({ onStockAdded }: { onStockAdded: () => void })
     const canDecrement = useMemo(() => qty > 1, [qty]);
 
     async function onSubmit() {
-        // 1) Persist new frequency if changed
         const current = await getSettings();
         if (current.frequency !== frequency) {
             await setFrequency(frequency);
         }
 
-        // 2) Create ADD_STOCK with meta (eye + added date)
         const finalQty = eye === 'BOTH' ? qty * 2 : qty;
         const e = ev.addStock(finalQty, "default", note || undefined, {
             eye,
@@ -53,153 +50,125 @@ export default function AddStock({ onStockAdded }: { onStockAdded: () => void })
         });
         await saveEvent(e);
 
-        // 3) Reset light UI bits (optional)
         setNote("");
         onStockAdded();
     }
 
-    if (loading) {
-        return <div className="card">Loading settings…</div>;
-    }
+    if (loading) return <div className="card text-secondary" style={{ textAlign: 'center' }}>Loading...</div>;
 
     return (
-        <div className="grid card" style={{ gap: 16 }}>
-            {/* Eye selection */}
-            <div>
-                <div className="small">Eye</div>
-                <div className="row" style={{ gap: 16 }}>
-                    <label>
+        <div className="flex" style={{ flexDirection: 'column', gap: '1.5rem' }}>
+
+            <div className="card">
+                <label className="text-sm font-black text-secondary" style={{ display: 'block', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Which eye?</label>
+                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: 'var(--radius-md)', gap: '6px' }}>
+                    {['LEFT', 'RIGHT', 'BOTH'].map((opt) => (
+                        <button
+                            key={opt}
+                            onClick={() => setEye(opt as EyeOpt)}
+                            className={eye === opt ? "btn btn-green" : ""}
+                            style={{
+                                flex: 1,
+                                padding: '0.75rem 0.5rem',
+                                borderRadius: 'var(--radius-md)',
+                                border: 'none',
+                                background: eye === opt ? undefined : 'transparent',
+                                color: eye === opt ? 'white' : 'var(--color-text-secondary)',
+                                fontWeight: 800,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {opt === 'BOTH' ? 'Both Eyes' : opt === 'LEFT' ? 'Left' : 'Right'}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="card">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <FormField label="Expiration Type">
+                        <select
+                            value={frequency}
+                            onChange={(e) => setFreq(e.target.value as Frequency)}
+                            style={inputStyle}
+                        >
+                            <option value="DAILY">Daily (1 Day)</option>
+                            <option value="MONTHLY">Monthly (30 Days)</option>
+                            <option value="BIMONTHLY">Bimonthly (60 Days)</option>
+                            <option value="QUARTERLY">Quarterly (90 Days)</option>
+                            <option value="HALF_YEARLY">Half Yearly (180 Days)</option>
+                            <option value="YEARLY">Yearly (365 Days)</option>
+                        </select>
+                    </FormField>
+
+                    <FormField label="Date Bought">
                         <input
-                            type="radio"
-                            name="eye"
-                            value="LEFT"
-                            checked={eye === "LEFT"}
-                            onChange={() => setEye("LEFT")}
-                        />{" "}
-                        Left
-                    </label>
-                    <label>
+                            type="date"
+                            value={dateAdded}
+                            onChange={(e) => setDateAdded(e.target.value)}
+                            style={inputStyle}
+                        />
+                    </FormField>
+
+                    <FormField label="Quantity">
+                        <div className="flex items-center gap-4">
+                            <button
+                                className="btn btn-secondary"
+                                style={{ width: '40px', height: '40px', padding: 0 }}
+                                onClick={() => canDecrement && setQty(q => Math.max(1, q - 1))}
+                                disabled={!canDecrement}
+                            >
+                                −
+                            </button>
+                            <div className="font-bold" style={{ fontSize: '1.25rem', width: '40px', textAlign: 'center' }}>{qty}</div>
+                            <button
+                                className="btn btn-secondary"
+                                style={{ width: '40px', height: '40px', padding: 0 }}
+                                onClick={() => setQty(q => q + 1)}
+                            >
+                                +
+                            </button>
+                        </div>
+                    </FormField>
+
+                    <FormField label="Note (Optional)">
                         <input
-                            type="radio"
-                            name="eye"
-                            value="RIGHT"
-                            checked={eye === "RIGHT"}
-                            onChange={() => setEye("RIGHT")}
-                        />{" "}
-                        Right
-                    </label>
-                    <label>
-                        <input
-                            type="radio"
-                            name="eye"
-                            value="BOTH"
-                            checked={eye === "BOTH"}
-                            onChange={() => setEye("BOTH")}
-                        />{" "}
-                        Both
-                    </label>
-                </div>
-                <div className="small">
-                    When “Both” is selected, the quantity will be added to each eye.
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            placeholder="e.g. Acuvue Oasys"
+                            style={inputStyle}
+                        />
+                    </FormField>
                 </div>
             </div>
 
-            {/* Expiration / Frequency */}
-            <div>
-                <div className="small">Expiration Type</div>
-                <select
-                    value={frequency}
-                    onChange={(e) => setFreq(e.target.value as Frequency)}
-                    style={{
-                        width: "100%",
-                        padding: 8,
-                        borderRadius: 8,
-                        border: "1px solid #cbd5e1",
-                    }}
-                >
-                    <option value="DAILY">Daily</option>
-                    <option value="MONTHLY">Monthly</option>
-                    <option value="QUARTERLY">Quarterly</option>
-                    <option value="YEARLY">Yearly</option>
-                </select>
-                <div className="small">
-                    This is global. We recompute next-change & runway using this setting.
-                </div>
-            </div>
-
-            {/* Date added (audit) */}
-            <div>
-                <div className="small">Date added / bought</div>
-                <input
-                    type="date"
-                    value={dateAdded}
-                    onChange={(e) => setDateAdded(e.target.value)}
-                    style={{
-                        width: "100%",
-                        padding: 8,
-                        borderRadius: 8,
-                        border: "1px solid #cbd5e1",
-                    }}
-                />
-            </div>
-
-            {/* Count with +/- */}
-            <div>
-                <div className="small">Count</div>
-                <div className="row" style={{ gap: 8 }}>
-                    <button
-                        className="button"
-                        style={{ width: 56 }}
-                        onClick={() => canDecrement && setQty((q) => Math.max(1, q - 1))}
-                        disabled={!canDecrement}
-                    >
-                        −
-                    </button>
-                    <input
-                        type="number"
-                        value={qty}
-                        onChange={(e) => setQty(Math.max(1, Number(e.target.value)))}
-                        style={{
-                            width: 100,
-                            textAlign: "center",
-                            padding: 8,
-                            borderRadius: 8,
-                            border: "1px solid #cbd5e1",
-                        }}
-                    />
-                    <button
-                        className="button"
-                        style={{ width: 56 }}
-                        onClick={() => setQty((q) => q + 1)}
-                    >
-                        +
-                    </button>
-                </div>
-                <div className="small">
-                    Example: 30 for “Both” → 30 for Left, 30 for Right.
-                </div>
-            </div>
-
-            {/* Optional note */}
-            <div>
-                <div className="small">Note (optional)</div>
-                <input
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="e.g., Amazon order #123"
-                    style={{
-                        width: "100%",
-                        padding: 8,
-                        borderRadius: 8,
-                        border: "1px solid #cbd5e1",
-                    }}
-                />
-            </div>
-
-            {/* Submit */}
-            <button className="button primary" onClick={onSubmit}>
-                Add Stock
+            <button className="btn btn-green btn-block" onClick={onSubmit} style={{ padding: '1.25rem', fontSize: '1.1rem', fontWeight: 900 }}>
+                Add to Inventory
             </button>
+        </div>
+    );
+}
+
+const inputStyle = {
+    width: '100%',
+    padding: '0.75rem',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-bg)',
+    fontSize: '1rem',
+    fontFamily: 'inherit',
+    color: 'var(--color-text)'
+};
+
+function FormField({ label, children }: any) {
+    return (
+        <div>
+            <label className="text-xs font-bold text-secondary" style={{ display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                {label}
+            </label>
+            {children}
         </div>
     );
 }

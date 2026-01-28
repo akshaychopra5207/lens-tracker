@@ -24,3 +24,8 @@ export async function clearAll() {
     const d = await db();
     await d.clear('events');
 }
+
+export async function deleteEvent(id: string) {
+    const d = await db();
+    await d.delete('events', id);
+}
