@@ -14,6 +14,10 @@ export interface AddStockMeta {
     addedDateIso: string; // audit date chosen on form
 }
 
+export interface UseMeta {
+    manualDueDate?: string; // ISO date string
+}
+
 export interface LensEvent {
     id: string;
     type: EventType;
@@ -23,7 +27,7 @@ export interface LensEvent {
     at: string;          // ISO UTC timestamp
     note?: string;
     source?: 'PWA' | 'DEVICE' | 'IMPORT';
-    meta?: AddStockMeta;  // only used for ADD_STOCK
+    meta?: AddStockMeta | UseMeta;
 }
 
 export const nowIso = () => new Date().toISOString();
@@ -32,11 +36,11 @@ export const ev = {
     addStock: (qty: number, lensTypeId: string, note?: string, meta?: AddStockMeta): LensEvent => ({
         id: uuid(), type: 'ADD_STOCK', qty, lensTypeId, at: nowIso(), note, meta
     }),
-    useLeft: (lensTypeId: string): LensEvent => ({
-        id: uuid(), type: 'USE_LEFT', qty: 1, eye: 'LEFT', lensTypeId, at: nowIso(),
+    useLeft: (lensTypeId: string, meta?: UseMeta): LensEvent => ({
+        id: uuid(), type: 'USE_LEFT', qty: 1, eye: 'LEFT', lensTypeId, at: nowIso(), meta
     }),
-    useRight: (lensTypeId: string): LensEvent => ({
-        id: uuid(), type: 'USE_RIGHT', qty: 1, eye: 'RIGHT', lensTypeId, at: nowIso(),
+    useRight: (lensTypeId: string, meta?: UseMeta): LensEvent => ({
+        id: uuid(), type: 'USE_RIGHT', qty: 1, eye: 'RIGHT', lensTypeId, at: nowIso(), meta
     }),
     changeLeft: (lensTypeId: string): LensEvent => ({
         id: uuid(), type: 'CHANGE_LEFT', qty: 1, eye: 'LEFT', lensTypeId, at: nowIso(),

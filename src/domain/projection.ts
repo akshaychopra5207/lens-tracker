@@ -9,19 +9,29 @@ export function project(events: LensEvent[], freq: Frequency = defaultSettings.f
     let invL = 0, invR = 0;
     let lastUseL: Date | null = null, lastUseR: Date | null = null;
     let lastChangeL: Date | null = null, lastChangeR: Date | null = null;
+    let lastUseMetaL: any = null;
+    let lastUseMetaR: any = null;
 
     for (const e of events) {
         switch (e.type) {
             case 'ADD_STOCK': {
                 const added = e.qty;
-                const eye = e.meta?.eye ?? 'BOTH';
+                const eye = (e.meta as any)?.eye ?? 'BOTH';
                 if (eye === 'LEFT') invL += added;
                 else if (eye === 'RIGHT') invR += added;
                 else { invL += Math.floor(added / 2); invR += Math.ceil(added / 2); }
                 break;
             }
-            case 'USE_LEFT': invL -= 1; lastUseL = new Date(e.at); break;
-            case 'USE_RIGHT': invR -= 1; lastUseR = new Date(e.at); break;
+            case 'USE_LEFT':
+                invL -= 1;
+                lastUseL = new Date(e.at);
+                lastUseMetaL = e.meta;
+                break;
+            case 'USE_RIGHT':
+                invR -= 1;
+                lastUseR = new Date(e.at);
+                lastUseMetaR = e.meta;
+                break;
             case 'CHANGE_LEFT': lastChangeL = new Date(e.at); break;
             case 'CHANGE_RIGHT': lastChangeR = new Date(e.at); break;
             case 'CORRECTION': {
@@ -33,8 +43,24 @@ export function project(events: LensEvent[], freq: Frequency = defaultSettings.f
     }
 
     const cycle = getCycleDays(freq);
-    const nextL = lastUseL ? addDays(lastUseL, cycle) : null;
-    const nextR = lastUseR ? addDays(lastUseR, cycle) : null;
+
+    let nextL = null;
+    if (lastUseL) {
+        if (lastUseMetaL?.manualDueDate) {
+            nextL = new Date(lastUseMetaL.manualDueDate);
+        } else {
+            nextL = addDays(lastUseL, cycle);
+        }
+    }
+
+    let nextR = null;
+    if (lastUseR) {
+        if (lastUseMetaR?.manualDueDate) {
+            nextR = new Date(lastUseMetaR.manualDueDate);
+        } else {
+            nextR = addDays(lastUseR, cycle);
+        }
+    }
 
     const dailyPerEye = 1 / cycle;
     const runwayL = invL > 0 ? Math.floor(invL / dailyPerEye) : 0;

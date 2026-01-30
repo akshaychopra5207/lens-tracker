@@ -5,6 +5,8 @@ import Events from "./ui/Events";
 import Login from "./ui/Login";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { subscribeForPush } from "./ui/push";
+import { registerPushSubscription } from "./ui/pushApi";
 
 // Simple router hook
 function useRoute() {
@@ -108,12 +110,23 @@ export default function App() {
             </div>
             <div className="flex flex-col gap-2">
               <SettingsRow icon="🔔" label="Enable Reminders" onClick={async () => {
-                const result = await Notification.requestPermission();
-                if (result !== "granted") {
-                  alert("Notifications not enabled.");
-                  return;
+                try {
+                  const result = await Notification.requestPermission();
+                  if (result !== "granted") {
+                    alert("Notifications permission denied.");
+                    return;
+                  }
+
+                  // Subscribe to push service
+                  const sub = await subscribeForPush();
+                  // Register with our backend, sending the email if available
+                  await registerPushSubscription(sub, user?.email || undefined);
+
+                  alert("Notifications enabled and linked to your email! ✅");
+                } catch (err: any) {
+                  console.error(err);
+                  alert(`Error: ${err.message}`);
                 }
-                alert("Notifications enabled!");
               }} />
               <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.5rem 0' }} />
               <SettingsRow icon="🚪" label="Sign Out" onClick={handleLogout} />

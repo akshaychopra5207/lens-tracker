@@ -1,6 +1,6 @@
 import { getOrCreateDeviceId } from "./deviceId";
 
-export async function registerPushSubscription(sub: PushSubscription) {
+export async function registerPushSubscription(sub: PushSubscription, email?: string) {
     const base = import.meta.env.VITE_PUSH_API_BASE as string;
     if (!base) throw new Error("Missing VITE_PUSH_API_BASE");
 
@@ -12,6 +12,7 @@ export async function registerPushSubscription(sub: PushSubscription) {
         body: JSON.stringify({
             deviceId,
             subscription: sub.toJSON(),
+            email,
         }),
     });
 

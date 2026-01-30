@@ -36,10 +36,10 @@ export default function Home() {
     const canUseLeft = invL > 0;
     const canUseRight = invR > 0;
     const canChangeBoth = invL > 0 && invR > 0;
+    const [confirmingEye, setConfirmingEye] = useState<"LEFT" | "RIGHT" | null>(null);
+    const [proposedDue, setProposedDue] = useState<string>("");
 
-
-
-    async function doUse(eye: "LEFT" | "RIGHT") {
+    async function promptUse(eye: "LEFT" | "RIGHT") {
         const eventsBefore = await listEventsDesc(1000);
         const s = await getSettings();
         const pBefore = project([...eventsBefore].reverse(), s.frequency);
@@ -50,16 +50,34 @@ export default function Home() {
             return;
         }
 
-        const e = eye === "LEFT" ? ev.useLeft(lensTypeId) : ev.useRight(lensTypeId);
+        // Calculate expected due date
+        const cycleDays = pBefore.cycleDays;
+        const nextDue = new Date();
+        nextDue.setDate(nextDue.getDate() + cycleDays);
+        setProposedDue(nextDue.toISOString().split("T")[0]); // YYYY-MM-DD
+        setConfirmingEye(eye);
+    }
+
+    async function onConfirmUse(manualDate: string) {
+        if (!confirmingEye) return;
+        const eye = confirmingEye;
+        setConfirmingEye(null);
+
+        const e = eye === "LEFT"
+            ? ev.useLeft(lensTypeId, { manualDueDate: manualDate })
+            : ev.useRight(lensTypeId, { manualDueDate: manualDate });
+
         await saveEvent(e);
 
-        const eventsAfter = await listEventsDesc(1000);
-        const pAfter = project([...eventsAfter].reverse(), s.frequency);
-        const due = eye === "LEFT" ? pAfter.nextL : pAfter.nextR;
-
-        if (due) {
+        if (manualDate) {
             try {
-                await upsertCycle(eye, due);
+                // Ensure we pass the full ISO string if it's just YYYY-MM-DD
+                const d = new Date(manualDate);
+                // If the user picked a date, we probably want it to be "end of day" or "same time as now"?
+                // Actually cycleApi expects a Date object.
+                // We should probably set it to the specific time matching current time to preserve precision, or just noon.
+                // Let's keep it simple: strict date.
+                await upsertCycle(eye, d);
             } catch (err: any) {
                 console.error("cycle/upsert failed:", err);
             }
@@ -68,6 +86,9 @@ export default function Home() {
     }
 
     async function changeBoth() {
+        // For "Change Both", we skip the manual confirmation for now to keep flow fast,
+        // or we could assume default. The user asked for "option to override".
+        // Let's leave Change Both as automatic for now (MVP).
         await saveEvent(ev.changeLeft(lensTypeId));
         await saveEvent(ev.changeRight(lensTypeId));
         await saveEvent(ev.useLeft(lensTypeId));
@@ -109,7 +130,7 @@ export default function Home() {
                 <div className="flex-1" title={!canUseLeft ? "there is no lens available please buy or add first" : ""}>
                     <button
                         className="btn btn-orange btn-sm w-full"
-                        onClick={() => doUse("LEFT")}
+                        onClick={() => promptUse("LEFT")}
                         disabled={!canUseLeft}
                         style={{ height: '100%' }}
                     >
@@ -119,7 +140,7 @@ export default function Home() {
                 <div className="flex-1" title={!canUseRight ? "there is no lens available please buy or add first" : ""}>
                     <button
                         className="btn btn-orange btn-sm w-full"
-                        onClick={() => doUse("RIGHT")}
+                        onClick={() => promptUse("RIGHT")}
                         disabled={!canUseRight}
                         style={{ height: '100%' }}
                     >
@@ -180,6 +201,50 @@ export default function Home() {
                 )}
             </div>
 
+            {confirmingEye && (
+                <UsageModal
+                    eye={confirmingEye}
+                    initialDate={proposedDue}
+                    onClose={() => setConfirmingEye(null)}
+                    onConfirm={onConfirmUse}
+                />
+            )}
+
+        </div>
+    );
+}
+
+function UsageModal({ eye, initialDate, onClose, onConfirm }: any) {
+    const [date, setDate] = useState(initialDate);
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000
+        }}>
+            <div className="card" style={{ width: '90%', maxWidth: '320px', padding: '1.5rem' }}>
+                <h3 className="text-lg font-bold mb-4">Start {eye} Lens?</h3>
+                <p className="text-sm text-secondary mb-4">Confirm or adjust the expected expiry date.</p>
+
+                <div className="mb-4">
+                    <label className="text-xs font-bold text-secondary block mb-1">DUE DATE</label>
+                    <input
+                        type="date"
+                        value={date}
+                        onChange={e => setDate(e.target.value)}
+                        style={{
+                            width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border)', fontSize: '1rem'
+                        }}
+                    />
+                </div>
+
+                <div className="flex gap-2">
+                    <button className="btn btn-secondary flex-1" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-green flex-1" onClick={() => onConfirm(date)}>Confirm</button>
+                </div>
+            </div>
         </div>
     );
 }
