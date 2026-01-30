@@ -38,6 +38,7 @@ export default function Home() {
     const canChangeBoth = invL > 0 && invR > 0;
     const [confirmingEye, setConfirmingEye] = useState<"LEFT" | "RIGHT" | null>(null);
     const [proposedDue, setProposedDue] = useState<string>("");
+    const [adjustingEye, setAdjustingEye] = useState<"LEFT" | "RIGHT" | null>(null);
 
     async function promptUse(eye: "LEFT" | "RIGHT") {
         const eventsBefore = await listEventsDesc(1000);
@@ -85,6 +86,24 @@ export default function Home() {
         await refresh();
     }
 
+    async function onConfirmAdjust(manualDate: string) {
+        if (!adjustingEye) return;
+        const eye = adjustingEye;
+        setAdjustingEye(null);
+
+        const e = ev.updateDueDate(eye, manualDate, lensTypeId);
+        await saveEvent(e);
+
+        try {
+            const d = new Date(manualDate);
+            await upsertCycle(eye, d);
+        } catch (err: any) {
+            console.error("cycle/upsert failed:", err);
+        }
+
+        await refresh();
+    }
+
     async function changeBoth() {
         // For "Change Both", we skip the manual confirmation for now to keep flow fast,
         // or we could assume default. The user asked for "option to override".
@@ -115,44 +134,56 @@ export default function Home() {
                     <div>
                         <div className="text-sm" style={{ opacity: 0.8, marginBottom: '4px' }}>Inventory (L)</div>
                         <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>{invL}</div>
-                        <div className="text-xs" style={{ opacity: 0.7 }}>Next: {nextL ? nextL.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}</div>
+                        <div
+                            className="text-xs"
+                            style={{ opacity: 0.7, cursor: nextL ? 'pointer' : 'default', textDecoration: nextL ? 'underline' : 'none' }}
+                            onClick={() => nextL && setAdjustingEye("LEFT")}
+                        >
+                            Next: {nextL ? nextL.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                        </div>
                     </div>
                     <div>
                         <div className="text-sm" style={{ opacity: 0.8, marginBottom: '4px' }}>Inventory (R)</div>
                         <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>{invR}</div>
-                        <div className="text-xs" style={{ opacity: 0.7 }}>Next: {nextR ? nextR.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}</div>
+                        <div
+                            className="text-xs"
+                            style={{ opacity: 0.7, cursor: nextR ? 'pointer' : 'default', textDecoration: nextR ? 'underline' : 'none' }}
+                            onClick={() => nextR && setAdjustingEye("RIGHT")}
+                        >
+                            Next: {nextR ? nextR.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Quick Actions (Row) */}
-            <div className="flex gap-2">
-                <div className="flex-1" title={!canUseLeft ? "there is no lens available please buy or add first" : ""}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                <div title={!canUseLeft ? "there is no lens available please buy or add first" : ""}>
                     <button
-                        className="btn btn-orange btn-sm w-full"
+                        className="btn btn-orange btn-sm"
                         onClick={() => promptUse("LEFT")}
                         disabled={!canUseLeft}
-                        style={{ height: '100%' }}
+                        style={{ width: '100%', height: '100%', minHeight: '48px', padding: '0.5rem' }}
                     >
                         Use Left
                     </button>
                 </div>
-                <div className="flex-1" title={!canUseRight ? "there is no lens available please buy or add first" : ""}>
+                <div title={!canUseRight ? "there is no lens available please buy or add first" : ""}>
                     <button
-                        className="btn btn-orange btn-sm w-full"
+                        className="btn btn-orange btn-sm"
                         onClick={() => promptUse("RIGHT")}
                         disabled={!canUseRight}
-                        style={{ height: '100%' }}
+                        style={{ width: '100%', height: '100%', minHeight: '48px', padding: '0.5rem' }}
                     >
                         Use Right
                     </button>
                 </div>
-                <div className="flex-1" title={!canChangeBoth ? "there is no lens available please buy or add first" : ""}>
+                <div title={!canChangeBoth ? "there is no lens available please buy or add first" : ""}>
                     <button
-                        className="btn btn-orange btn-sm w-full"
+                        className="btn btn-orange btn-sm"
                         onClick={changeBoth}
                         disabled={!canChangeBoth}
-                        style={{ height: '100%' }}
+                        style={{ width: '100%', height: '100%', minHeight: '48px', padding: '0.5rem' }}
                     >
                         Use Both
                     </button>
@@ -210,6 +241,15 @@ export default function Home() {
                 />
             )}
 
+            {adjustingEye && (
+                <AdjustDateModal
+                    eye={adjustingEye}
+                    initialDate={(adjustingEye === "LEFT" ? nextL : nextR)?.toISOString().split("T")[0] || ""}
+                    onClose={() => setAdjustingEye(null)}
+                    onConfirm={onConfirmAdjust}
+                />
+            )}
+
         </div>
     );
 }
@@ -223,26 +263,115 @@ function UsageModal({ eye, initialDate, onClose, onConfirm }: any) {
             background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 1000
         }}>
-            <div className="card" style={{ width: '90%', maxWidth: '320px', padding: '1.5rem' }}>
-                <h3 className="text-lg font-bold mb-4">Start {eye} Lens?</h3>
+            <div className="card" style={{
+                width: '95%',
+                maxWidth: '340px',
+                padding: '1.25rem',
+                margin: '1rem',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}>
+                <h3 className="text-lg font-bold mb-2">Start {eye} Lens?</h3>
                 <p className="text-sm text-secondary mb-4">Confirm or adjust the expected expiry date.</p>
 
-                <div className="mb-4">
-                    <label className="text-xs font-bold text-secondary block mb-1">DUE DATE</label>
+                <div className="mb-5">
+                    <label className="text-xs font-bold text-secondary block mb-1.5 uppercase tracking-wider">Due Date</label>
                     <input
                         type="date"
                         value={date}
                         onChange={e => setDate(e.target.value)}
                         style={{
-                            width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)', fontSize: '1rem'
+                            width: '100%',
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            border: '2px solid var(--color-border)',
+                            fontSize: '1rem',
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                            background: 'var(--color-surface)',
+                            color: 'var(--color-text)'
                         }}
                     />
                 </div>
 
-                <div className="flex gap-2">
-                    <button className="btn btn-secondary flex-1" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-green flex-1" onClick={() => onConfirm(date)}>Confirm</button>
+                <div className="flex gap-3">
+                    <button
+                        className="btn btn-secondary flex-1"
+                        onClick={onClose}
+                        style={{ padding: '0.875rem', borderRadius: '12px', fontWeight: 600 }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        className="btn btn-green flex-1"
+                        onClick={() => onConfirm(date)}
+                        style={{ padding: '0.875rem', borderRadius: '12px', fontWeight: 600 }}
+                    >
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function AdjustDateModal({ eye, initialDate, onClose, onConfirm }: any) {
+    const [date, setDate] = useState(initialDate);
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000
+        }}>
+            <div className="card" style={{
+                width: '95%',
+                maxWidth: '340px',
+                padding: '1.25rem',
+                margin: '1rem',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}>
+                <h3 className="text-lg font-bold mb-2">Adjust {eye} Due Date?</h3>
+                <p className="text-sm text-secondary mb-4">Change the expected expiry date for the current lens.</p>
+
+                <div className="mb-5">
+                    <label className="text-xs font-bold text-secondary block mb-1.5 uppercase tracking-wider">New Due Date</label>
+                    <input
+                        type="date"
+                        value={date}
+                        onChange={e => setDate(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            border: '2px solid var(--color-border)',
+                            fontSize: '1rem',
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                            background: 'var(--color-surface)',
+                            color: 'var(--color-text)'
+                        }}
+                    />
+                </div>
+
+                <div className="flex gap-3">
+                    <button
+                        className="btn btn-secondary flex-1"
+                        onClick={onClose}
+                        style={{ padding: '0.875rem', borderRadius: '12px', fontWeight: 600 }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        className="btn btn-green flex-1"
+                        onClick={() => onConfirm(date)}
+                        style={{ padding: '0.875rem', borderRadius: '12px', fontWeight: 600 }}
+                    >
+                        Save
+                    </button>
                 </div>
             </div>
         </div>

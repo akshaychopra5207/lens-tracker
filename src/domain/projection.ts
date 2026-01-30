@@ -11,6 +11,8 @@ export function project(events: LensEvent[], freq: Frequency = defaultSettings.f
     let lastChangeL: Date | null = null, lastChangeR: Date | null = null;
     let lastUseMetaL: any = null;
     let lastUseMetaR: any = null;
+    let manualDueDateL: string | null = null;
+    let manualDueDateR: string | null = null;
 
     for (const e of events) {
         switch (e.type) {
@@ -26,17 +28,31 @@ export function project(events: LensEvent[], freq: Frequency = defaultSettings.f
                 invL -= 1;
                 lastUseL = new Date(e.at);
                 lastUseMetaL = e.meta;
+                manualDueDateL = null; // Reset on new use
                 break;
             case 'USE_RIGHT':
                 invR -= 1;
                 lastUseR = new Date(e.at);
                 lastUseMetaR = e.meta;
+                manualDueDateR = null; // Reset on new use
                 break;
-            case 'CHANGE_LEFT': lastChangeL = new Date(e.at); break;
-            case 'CHANGE_RIGHT': lastChangeR = new Date(e.at); break;
+            case 'CHANGE_LEFT':
+                lastChangeL = new Date(e.at);
+                manualDueDateL = null; // Reset on change
+                break;
+            case 'CHANGE_RIGHT':
+                lastChangeR = new Date(e.at);
+                manualDueDateR = null; // Reset on change
+                break;
             case 'CORRECTION': {
                 // apply to Right by default for simplicity; later let user choose
                 invR += e.qty;
+                break;
+            }
+            case 'UPDATE_DUE_DATE': {
+                const meta = e.meta as any;
+                if (meta?.eye === 'LEFT') manualDueDateL = meta.newDueDateIso;
+                if (meta?.eye === 'RIGHT') manualDueDateR = meta.newDueDateIso;
                 break;
             }
         }
@@ -46,7 +62,9 @@ export function project(events: LensEvent[], freq: Frequency = defaultSettings.f
 
     let nextL = null;
     if (lastUseL) {
-        if (lastUseMetaL?.manualDueDate) {
+        if (manualDueDateL) {
+            nextL = new Date(manualDueDateL);
+        } else if (lastUseMetaL?.manualDueDate) {
             nextL = new Date(lastUseMetaL.manualDueDate);
         } else {
             nextL = addDays(lastUseL, cycle);
@@ -55,7 +73,9 @@ export function project(events: LensEvent[], freq: Frequency = defaultSettings.f
 
     let nextR = null;
     if (lastUseR) {
-        if (lastUseMetaR?.manualDueDate) {
+        if (manualDueDateR) {
+            nextR = new Date(manualDueDateR);
+        } else if (lastUseMetaR?.manualDueDate) {
             nextR = new Date(lastUseMetaR.manualDueDate);
         } else {
             nextR = addDays(lastUseR, cycle);

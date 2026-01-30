@@ -7,7 +7,8 @@ export type EventType =
     | 'USE_RIGHT'
     | 'CHANGE_LEFT'
     | 'CHANGE_RIGHT'
-    | 'CORRECTION';
+    | 'CORRECTION'
+    | 'UPDATE_DUE_DATE';
 
 export interface AddStockMeta {
     eye: 'LEFT' | 'RIGHT' | 'BOTH';
@@ -16,6 +17,11 @@ export interface AddStockMeta {
 
 export interface UseMeta {
     manualDueDate?: string; // ISO date string
+}
+
+export interface UpdateDueDateMeta {
+    eye: 'LEFT' | 'RIGHT';
+    newDueDateIso: string;
 }
 
 export interface LensEvent {
@@ -27,7 +33,7 @@ export interface LensEvent {
     at: string;          // ISO UTC timestamp
     note?: string;
     source?: 'PWA' | 'DEVICE' | 'IMPORT';
-    meta?: AddStockMeta | UseMeta;
+    meta?: AddStockMeta | UseMeta | UpdateDueDateMeta;
 }
 
 export const nowIso = () => new Date().toISOString();
@@ -51,5 +57,7 @@ export const ev = {
     correction: (delta: number, lensTypeId: string, note?: string): LensEvent => ({
         id: uuid(), type: 'CORRECTION', qty: delta, lensTypeId, at: nowIso(), note,
     }),
-
+    updateDueDate: (eye: 'LEFT' | 'RIGHT', newDueDateIso: string, lensTypeId: string): LensEvent => ({
+        id: uuid(), type: 'UPDATE_DUE_DATE', qty: 0, eye, lensTypeId, at: nowIso(), meta: { eye, newDueDateIso } as UpdateDueDateMeta
+    }),
 };
