@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { clearAll, listEventsDesc } from '../data/repo';
-import { type LensEvent } from '../domain/events';
+import { type LensEvent, type AddStockMeta } from '../domain/events';
 
 export default function Events() {
     const [items, setItems] = useState<LensEvent[]>([]);
@@ -81,7 +81,8 @@ function getIcon(type: string) {
 
 function formatTitle(e: LensEvent) {
     if (e.type === 'ADD_STOCK') {
-        const eye = e.meta?.eye;
+        const meta = e.meta as AddStockMeta | undefined;
+        const eye = meta?.eye;
         const qty = e.qty;
 
         if (eye === 'BOTH') {
