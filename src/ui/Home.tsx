@@ -40,7 +40,7 @@ export default function Home() {
     const [proposedDue, setProposedDue] = useState<string>("");
     const [adjustingEye, setAdjustingEye] = useState<"LEFT" | "RIGHT" | null>(null);
 
-    async function promptUse(eye: "LEFT" | "RIGHT") {
+    async function useEye(eye: "LEFT" | "RIGHT") {
         const eventsBefore = await listEventsDesc(1000);
         const s = await getSettings();
         const pBefore = project([...eventsBefore].reverse(), s.frequency);
@@ -51,38 +51,23 @@ export default function Home() {
             return;
         }
 
-        // Calculate expected due date
-        const cycleDays = pBefore.cycleDays;
-        const nextDue = new Date();
-        nextDue.setDate(nextDue.getDate() + cycleDays);
-        setProposedDue(nextDue.toISOString().split("T")[0]); // YYYY-MM-DD
-        setConfirmingEye(eye);
-    }
-
-    async function onConfirmUse(manualDate: string) {
-        if (!confirmingEye) return;
-        const eye = confirmingEye;
-        setConfirmingEye(null);
-
         const e = eye === "LEFT"
-            ? ev.useLeft(lensTypeId, { manualDueDate: manualDate })
-            : ev.useRight(lensTypeId, { manualDueDate: manualDate });
+            ? ev.useLeft(lensTypeId)
+            : ev.useRight(lensTypeId);
 
         await saveEvent(e);
 
-        if (manualDate) {
-            try {
-                // Ensure we pass the full ISO string if it's just YYYY-MM-DD
-                const d = new Date(manualDate);
-                // If the user picked a date, we probably want it to be "end of day" or "same time as now"?
-                // Actually cycleApi expects a Date object.
-                // We should probably set it to the specific time matching current time to preserve precision, or just noon.
-                // Let's keep it simple: strict date.
-                await upsertCycle(eye, d);
-            } catch (err: any) {
-                console.error("cycle/upsert failed:", err);
-            }
+        // Calculate and sync default next due date
+        const cycleDays = pBefore.cycleDays;
+        const nextDue = new Date();
+        nextDue.setDate(nextDue.getDate() + cycleDays);
+
+        try {
+            await upsertCycle(eye, nextDue);
+        } catch (err: any) {
+            console.error("cycle/upsert failed:", err);
         }
+
         await refresh();
     }
 
@@ -161,7 +146,7 @@ export default function Home() {
                 <div title={!canUseLeft ? "there is no lens available please buy or add first" : ""}>
                     <button
                         className="btn btn-orange btn-sm"
-                        onClick={() => promptUse("LEFT")}
+                        onClick={() => useEye("LEFT")}
                         disabled={!canUseLeft}
                         style={{ width: '100%', height: '100%', minHeight: '48px', padding: '0.5rem' }}
                     >
@@ -171,7 +156,7 @@ export default function Home() {
                 <div title={!canUseRight ? "there is no lens available please buy or add first" : ""}>
                     <button
                         className="btn btn-orange btn-sm"
-                        onClick={() => promptUse("RIGHT")}
+                        onClick={() => useEye("RIGHT")}
                         disabled={!canUseRight}
                         style={{ width: '100%', height: '100%', minHeight: '48px', padding: '0.5rem' }}
                     >
@@ -232,15 +217,6 @@ export default function Home() {
                 )}
             </div>
 
-            {confirmingEye && (
-                <UsageModal
-                    eye={confirmingEye}
-                    initialDate={proposedDue}
-                    onClose={() => setConfirmingEye(null)}
-                    onConfirm={onConfirmUse}
-                />
-            )}
-
             {adjustingEye && (
                 <AdjustDateModal
                     eye={adjustingEye}
@@ -250,68 +226,6 @@ export default function Home() {
                 />
             )}
 
-        </div>
-    );
-}
-
-function UsageModal({ eye, initialDate, onClose, onConfirm }: any) {
-    const [date, setDate] = useState(initialDate);
-
-    return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000
-        }}>
-            <div className="card" style={{
-                width: '95%',
-                maxWidth: '340px',
-                padding: '1.25rem',
-                margin: '1rem',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-            }}>
-                <h3 className="text-lg font-bold mb-2">Start {eye} Lens?</h3>
-                <p className="text-sm text-secondary mb-4">Confirm or adjust the expected expiry date.</p>
-
-                <div className="mb-5">
-                    <label className="text-xs font-bold text-secondary block mb-1.5 uppercase tracking-wider">Due Date</label>
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={e => setDate(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '0.875rem',
-                            borderRadius: '12px',
-                            border: '2px solid var(--color-border)',
-                            fontSize: '1rem',
-                            appearance: 'none',
-                            WebkitAppearance: 'none',
-                            background: 'var(--color-surface)',
-                            color: 'var(--color-text)'
-                        }}
-                    />
-                </div>
-
-                <div className="flex gap-3">
-                    <button
-                        className="btn btn-secondary flex-1"
-                        onClick={onClose}
-                        style={{ padding: '0.875rem', borderRadius: '12px', fontWeight: 600 }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        className="btn btn-green flex-1"
-                        onClick={() => onConfirm(date)}
-                        style={{ padding: '0.875rem', borderRadius: '12px', fontWeight: 600 }}
-                    >
-                        Confirm
-                    </button>
-                </div>
-            </div>
         </div>
     );
 }
