@@ -1,16 +1,16 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
-// TODO: Replace with your actual Firebase configuration
-// Get this from your Firebase Console (Project Settings > General > Your Apps)
+// Firebase configuration from environment variables
+// These values are loaded from .env.local (not committed to git)
 const firebaseConfig = {
-    apiKey: "AIzaSyBPARaGJ8LxHikpBt6NDER_TSoaF0jFYb8",
-    authDomain: "lens-tracker-d24e7.firebaseapp.com",
-    projectId: "lens-tracker-d24e7",
-    storageBucket: "lens-tracker-d24e7.firebasestorage.app",
-    messagingSenderId: "749027115567",
-    appId: "1:749027115567:web:c349ecdc23710f08927cda",
-    measurementId: "G-475Y3EW1C4"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

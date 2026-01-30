@@ -1,14 +1,11 @@
 import { useEffect, useState } from "react";
-import { clearAll, listEventsDesc, saveEvent } from "../data/repo";
+import { listEventsDesc, saveEvent } from "../data/repo";
 import { getSettings } from "../data/settingsRepo";
 import { ev } from "../domain/events";
 import { project } from "../domain/projection";
-import { subscribeForPush } from "./push";
-import { registerPushSubscription } from "./pushApi";
-import { getOrCreateDeviceId } from "./deviceId";
 import { upsertCycle } from "./cycleApi";
 
-export default function Home({ onLogout, forceShowSettings, onSettingsClose }: { onLogout: () => void, forceShowSettings?: boolean, onSettingsClose?: () => void }) {
+export default function Home() {
     const [invL, setInvL] = useState(0);
     const [invR, setInvR] = useState(0);
     const [nextL, setNextL] = useState<Date | null>(null);
@@ -40,21 +37,7 @@ export default function Home({ onLogout, forceShowSettings, onSettingsClose }: {
     const canUseRight = invR > 0;
     const canChangeBoth = invL > 0 && invR > 0;
 
-    async function enableReminders() {
-        const result = await Notification.requestPermission();
-        if (result !== "granted") {
-            alert("Notifications not enabled.");
-            return;
-        }
-        try {
-            const sub = await subscribeForPush();
-            const resp = await registerPushSubscription(sub);
-            const deviceId = getOrCreateDeviceId();
-            alert(`Registered ✅\nDeviceId: ${deviceId}\nResp: ${JSON.stringify(resp)}`);
-        } catch (e: any) {
-            alert(`Enable reminders failed: ${e?.message ?? String(e)}`);
-        }
-    }
+
 
     async function doUse(eye: "LEFT" | "RIGHT") {
         const eventsBefore = await listEventsDesc(1000);
@@ -84,10 +67,6 @@ export default function Home({ onLogout, forceShowSettings, onSettingsClose }: {
         await refresh();
     }
 
-    const [localShowSettings, setLocalShowSettings] = useState(false);
-    const showSettings = forceShowSettings ?? localShowSettings;
-    const setShowSettings = onSettingsClose ?? setLocalShowSettings;
-
     async function changeBoth() {
         await saveEvent(ev.changeLeft(lensTypeId));
         await saveEvent(ev.changeRight(lensTypeId));
@@ -100,13 +79,6 @@ export default function Home({ onLogout, forceShowSettings, onSettingsClose }: {
         const p = project([...events].reverse(), s.frequency);
         if (p.nextL) await upsertCycle("LEFT", p.nextL);
         if (p.nextR) await upsertCycle("RIGHT", p.nextR);
-    }
-
-    async function clearAllData() {
-        if (!confirm("Are you sure? This will delete all history.")) return;
-        await clearAll();
-        await refresh();
-        setShowSettings(false);
     }
 
     return (
@@ -208,48 +180,6 @@ export default function Home({ onLogout, forceShowSettings, onSettingsClose }: {
                 )}
             </div>
 
-            {/* Settings Modal */}
-            {showSettings && (
-                <div className="modal-overlay" onClick={() => setShowSettings(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
-                            <h3 className="font-bold">Settings</h3>
-                            <button className="icon-btn" onClick={() => setShowSettings(false)}>✕</button>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            <SettingsRow icon="🔔" label="Enable Reminders" onClick={enableReminders} />
-                            <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.5rem 0' }} />
-                            <SettingsRow icon="🚪" label="Sign Out" onClick={onLogout} />
-                            <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.5rem 0' }} />
-                            <SettingsRow icon="🗑️" label="Clear All Data" onClick={clearAllData} destructive />
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
-    );
-}
-
-function SettingsRow({ icon, label, onClick, destructive }: any) {
-    return (
-        <button
-            onClick={onClick}
-            style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-                padding: '1rem',
-                background: 'none',
-                border: 'none',
-                color: destructive ? 'var(--color-critical)' : 'var(--color-text)',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                fontWeight: 500
-            }}
-        >
-            <span>{icon}</span>
-            {label}
-        </button>
     );
 }

@@ -91,12 +91,36 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, padding: '1rem', paddingBottom: '2rem' }}>
+      <main style={{ flex: 1, padding: '1rem', paddingBottom: '6rem' }}>
         {route === "/login" && <Login onLogin={() => { }} />}
-        {route === "/" && <Home onLogout={handleLogout} forceShowSettings={showSettings} onSettingsClose={() => setShowSettings(false)} />}
+        {route === "/" && <Home />}
         {route === "/add" && <AddStock onStockAdded={() => nav('/')} />}
         {route === "/events" && <Events />}
       </main>
+
+      {/* Settings Modal - Global */}
+      {showSettings && user && (
+        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+              <h3 className="font-bold">Settings</h3>
+              <button className="icon-btn" onClick={() => setShowSettings(false)}>✕</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <SettingsRow icon="🔔" label="Enable Reminders" onClick={async () => {
+                const result = await Notification.requestPermission();
+                if (result !== "granted") {
+                  alert("Notifications not enabled.");
+                  return;
+                }
+                alert("Notifications enabled!");
+              }} />
+              <div style={{ height: '1px', background: 'var(--color-border)', margin: '0.5rem 0' }} />
+              <SettingsRow icon="🚪" label="Sign Out" onClick={handleLogout} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <nav
@@ -140,6 +164,30 @@ function NavButton({ label, active, onClick, icon }: { label: string, active: bo
       }}
     >
       <span style={{ fontSize: '1.5rem' }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function SettingsRow({ icon, label, onClick, destructive }: { icon: string, label: string, onClick: () => void, destructive?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1rem',
+        padding: '1rem',
+        background: 'none',
+        border: 'none',
+        color: destructive ? 'var(--color-critical)' : 'var(--color-text)',
+        cursor: 'pointer',
+        fontSize: '0.95rem',
+        fontWeight: 500
+      }}
+    >
+      <span>{icon}</span>
       {label}
     </button>
   );

@@ -144,7 +144,7 @@ export default function AddStock({ onStockAdded }: { onStockAdded: () => void })
                 </div>
             </div>
 
-            <button className="btn btn-green btn-block" onClick={onSubmit} style={{ padding: '1.25rem', fontSize: '1.1rem', fontWeight: 900 }}>
+            <button className="btn btn-green btn-block" onClick={onSubmit} style={{ padding: '1.25rem', fontSize: '1.1rem', fontWeight: 900, marginBottom: '1rem' }}>
                 Add to Inventory
             </button>
         </div>
